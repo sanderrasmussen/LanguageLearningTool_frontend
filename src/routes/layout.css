@@ -1,0 +1,15 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/forms';
+
+/* Dark mode form input styling */
+.dark input,
+.dark textarea,
+.dark select {
+  color-scheme: dark;
+}
+
+/* Ensure select dropdown options are readable in dark mode */
+.dark select option {
+  background-color: #374151;
+  color: #f9fafb;
+}

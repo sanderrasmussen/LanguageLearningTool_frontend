@@ -6,6 +6,7 @@
   import Navigation from '$lib/components/Navigation.svelte';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 
+  let title = '';
   let content = '';
   let language = 'en';
   let isPublic = false;
@@ -32,6 +33,11 @@
   });
 
   async function handleSubmit() {
+    if (!title.trim()) {
+      error = 'Title is required';
+      return;
+    }
+
     if (!content.trim()) {
       error = 'Content is required';
       return;
@@ -42,6 +48,7 @@
 
     try {
       await createText({
+        title: title.trim(),
         content: content.trim(),
         language,
         isPublic
@@ -80,6 +87,20 @@
       {/if}
 
       <form on:submit|preventDefault={handleSubmit} class="space-y-6">
+        <div>
+          <label for="title" class="block text-sm font-medium text-gray-900 dark:text-gray-300 mb-2 transition-colors">
+            Title *
+          </label>
+          <input
+            type="text"
+            id="title"
+            bind:value={title}
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition-colors"
+            placeholder="Enter a title for your text..."
+            required
+          />
+        </div>
+
         <div>
           <label for="content" class="block text-sm font-medium text-gray-900 dark:text-gray-300 mb-2 transition-colors">
             Content *

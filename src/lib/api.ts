@@ -12,6 +12,7 @@ export interface CedictEntry {
 
 export interface Text {
   id: number;
+  title: string;
   content: string;
   createdAt: string;
   isPublic: boolean;
@@ -22,6 +23,7 @@ export interface Text {
 }
 
 export interface TextRequest {
+  title: string;
   content: string;
   language: string;
   isPublic?: boolean;

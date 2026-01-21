@@ -102,10 +102,10 @@
             <div class="flex justify-between items-start mb-4">
               <div class="flex-1 min-w-0">
                 <h3 class="text-lg font-semibold text-gray-900 dark:text-white truncate mb-1 transition-colors">
-                  {text.language.toUpperCase()}
+                  {text.title}
                 </h3>
                 <p class="text-sm text-gray-500 dark:text-gray-400 transition-colors">
-                  {new Date(text.createdAt).toLocaleDateString()}
+                  {text.language.toUpperCase()} • {new Date(text.createdAt).toLocaleDateString()}
                 </p>
               </div>
               {#if text.isPublic}

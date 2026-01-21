@@ -110,9 +110,9 @@
 
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 transition-colors duration-300">
       <div class="flex justify-between items-start mb-6">
-        <div>
-          <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2 transition-colors">Text Details</h1>
-          {#if text}
+        {#if text}
+          <div>
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2 transition-colors">{text.title}</h1>
             <div class="flex items-center space-x-4 text-sm text-gray-700 dark:text-gray-400 transition-colors">
               <span class="font-medium">Language: {text.language.toUpperCase()}</span>
               <span>Created: {new Date(text.createdAt).toLocaleDateString()}</span>
@@ -126,8 +126,8 @@
                 </span>
               {/if}
             </div>
-          {/if}
-        </div>
+          </div>
+        {/if}
         {#if text}
           <button
             on:click={handleEdit}

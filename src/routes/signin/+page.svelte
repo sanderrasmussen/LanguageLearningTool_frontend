@@ -40,15 +40,23 @@
   }
 </script>
 
-<div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
-  <div class="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 transition-colors border border-gray-200 dark:border-gray-700">
-    <div>
-      <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white transition-colors">
-        Sign in to your account
+<div class="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 transition-all duration-500">
+  <div class="max-w-md w-full space-y-8 bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg rounded-2xl shadow-2xl p-8 transition-all duration-300 border border-gray-200/50 dark:border-gray-700/50">
+    <div class="text-center">
+      <div class="mx-auto h-16 w-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4 shadow-lg">
+        <svg class="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+        </svg>
+      </div>
+      <h2 class="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+        Welcome Back
       </h2>
-      <p class="mt-2 text-center text-sm text-gray-700 dark:text-gray-300 transition-colors">
+      <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+        Sign in to continue your language learning journey
+      </p>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-500">
         Or
-        <a href="/signup" class="font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors">
+        <a href="/signup" class="font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 transition-colors duration-200">
           create a new account
         </a>
       </p>
@@ -115,7 +123,7 @@
         <button
           type="submit"
           disabled={isLoading}
-          class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-700 dark:hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-semibold rounded-xl text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
         >
           {#if isLoading}
             <span class="flex items-center">
@@ -126,7 +134,12 @@
               Signing in...
             </span>
           {:else}
-            Sign in
+            <span class="flex items-center space-x-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+              </svg>
+              <span>Sign In</span>
+            </span>
           {/if}
         </button>
       </div>
@@ -139,4 +152,3 @@
     </form>
   </div>
 </div>
-

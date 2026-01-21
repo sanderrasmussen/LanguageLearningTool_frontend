@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import { isAuthenticated } from '$lib/auth';
   import { getTexts, getDecks, createFlashcard, type Text, type CedictEntry, type Deck } from '$lib/api';
+  import { convertToToneMarks } from '$lib/utils';
   import Navigation from '$lib/components/Navigation.svelte';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
   import TextNavigation from '$lib/components/TextNavigation.svelte';
@@ -252,7 +253,7 @@
                       </svg>
                     </button>
                   </div>
-                  <div class="text-lg text-gray-600 dark:text-gray-300">{focusedWord.pinyin}</div>
+                  <div class="text-lg text-gray-600 dark:text-gray-300">{text?.language === 'zh' ? convertToToneMarks(focusedWord.pinyin) : focusedWord.pinyin}</div>
                   <div class="text-left mt-2">
                     <h3 class="font-semibold mb-1 text-gray-900 dark:text-gray-100">Definitions:</h3>
                     <ul class="list-disc list-inside">
@@ -271,7 +272,7 @@
                       {#each (focusedWord as any).relatedWords as relatedWord}
                         <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded transition-colors">
                           <div class="text-xl font-semibold text-gray-900 dark:text-white">{relatedWord.simplified}</div>
-                          <div class="text-sm text-gray-600 dark:text-gray-300">{relatedWord.pinyin}</div>
+                          <div class="text-sm text-gray-600 dark:text-gray-300">{text?.language === 'zh' ? convertToToneMarks(relatedWord.pinyin) : relatedWord.pinyin}</div>
                           <div class="text-sm text-gray-700 dark:text-gray-300 mt-1">
                             {#each relatedWord.definitions.slice(0, 2) as def}
                               {def + (relatedWord.definitions.length > 2 ? ', ...' : '')}
@@ -315,7 +316,7 @@
         {#if focusedWord}
           <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
             <div class="text-lg font-semibold text-gray-900 dark:text-white">{focusedWord.simplified}</div>
-            <div class="text-sm text-gray-600 dark:text-gray-400">{focusedWord.pinyin}</div>
+            <div class="text-sm text-gray-600 dark:text-gray-400">{text?.language === 'zh' ? convertToToneMarks(focusedWord.pinyin) : focusedWord.pinyin}</div>
             <div class="text-sm text-gray-700 dark:text-gray-300 mt-1">
               {focusedWord.definitions[0]?.split('/')[0] || 'Definition not available'}
             </div>

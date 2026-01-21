@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import { isAuthenticated } from '$lib/auth';
   import { getDeck, getFlashcardsByDeck, deleteFlashcard, type Deck, type Flashcard } from '$lib/api';
+  import { convertToToneMarks } from '$lib/utils';
   import Navigation from '$lib/components/Navigation.svelte';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 
@@ -133,7 +134,7 @@
                     <div class="flex items-center space-x-4 mb-2">
                       <div class="text-xl font-semibold text-gray-900 dark:text-white">{flashcard.word}</div>
                       {#if flashcard.pinyin}
-                        <div class="text-lg text-gray-600 dark:text-gray-300">{flashcard.pinyin}</div>
+                        <div class="text-lg text-gray-600 dark:text-gray-300">{deck?.language === 'zh' ? convertToToneMarks(flashcard.pinyin) : flashcard.pinyin}</div>
                       {/if}
                     </div>
                     <div class="text-gray-700 dark:text-gray-300">{flashcard.translation}</div>

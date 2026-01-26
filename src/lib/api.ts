@@ -17,6 +17,7 @@ export interface Text {
   createdAt: string;
   isPublic: boolean;
   language: string;
+  upvotes: number;
   userId: number;
   wordData?: Record<string, CedictEntry>;
   segmentedText?: string[];
@@ -106,6 +107,11 @@ export async function getTexts(): Promise<Text[]> {
   return response.json();
 }
 
+export async function getText(id: number): Promise<Text> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/texts/${id}`);
+  return response.json();
+}
+
 export async function createText(text: TextRequest): Promise<Text> {
   const response = await fetchWithAuth(`${API_BASE_URL}/texts`, {
     method: 'POST',
@@ -126,6 +132,24 @@ export async function deleteText(id: number): Promise<void> {
   await fetchWithAuth(`${API_BASE_URL}/texts/${id}`, {
     method: 'DELETE',
   });
+}
+
+export async function getPublicTexts(language?: string): Promise<Text[]> {
+  const url = language
+    ? `${API_BASE_URL}/texts/public?language=${encodeURIComponent(language)}`
+    : `${API_BASE_URL}/texts/public`;
+  const response = await fetch(url); // Public endpoint doesn't require auth
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function upvoteText(id: number): Promise<Text> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/texts/${id}/upvote`, {
+    method: 'POST',
+  });
+  return response.json();
 }
 
 // Deck API functions
@@ -170,8 +194,8 @@ export async function getFlashcardsByDeck(deckId: number): Promise<Flashcard[]> 
   return response.json();
 }
 
-export async function getDueFlashcards(): Promise<Flashcard[]> {
-  const response = await fetchWithAuth(`${API_BASE_URL}/flashcards/due`);
+export async function getDueFlashcards(limit: number = 20): Promise<Flashcard[]> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/flashcards/due?limit=${limit}`);
   return response.json();
 }
 

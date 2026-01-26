@@ -14,9 +14,11 @@
   let sessionStats = {
     reviewed: 0,
     correct: 0,
-    totalTime: 0
+    totalTime: 0,
+    relearned: 0
   };
   let startTime = Date.now();
+  let limit = 20; // Default daily limit
 
   onMount(async () => {
     if (!isAuthenticated()) {
@@ -24,14 +26,18 @@
       return;
     }
 
-    await loadDueFlashcards();
+    // Get daily limit from localStorage
+    const savedLimit = localStorage.getItem('dailyLimit');
+    limit = savedLimit ? parseInt(savedLimit, 10) : 20;
+
+    await loadDueFlashcards(limit);
   });
 
-  async function loadDueFlashcards() {
+  async function loadDueFlashcards(limit: number = 20) {
     loading = true;
     error = '';
     try {
-      flashcards = await getDueFlashcards();
+      flashcards = await getDueFlashcards(limit);
       if (flashcards.length === 0) {
         goto('/flashcards');
         return;
@@ -49,21 +55,27 @@
 
     reviewing = true;
     try {
-      await reviewFlashcard(currentFlashcard.id, { quality });
+      const updatedFlashcard = await reviewFlashcard(currentFlashcard.id, { quality });
 
-      sessionStats.reviewed++;
-      if (quality >= 3) {
-        sessionStats.correct++;
+      if (quality === 0) {
+        // Re-queue the card at the end of the current session
+        const cardToRequeue = { ...currentFlashcard, ...updatedFlashcard };
+        flashcards = [...flashcards, cardToRequeue];
+        sessionStats.relearned++;
+      } else {
+        sessionStats.reviewed++;
+        if (quality >= 3) {
+          sessionStats.correct++;
+        }
       }
 
       // Move to next card or finish
-      if (currentIndex < flashcards.length - 1) {
-        currentIndex++;
-        showAnswer = false;
-      } else {
+      currentIndex++;
+      showAnswer = false;
+      
+      if (currentIndex >= flashcards.length) {
         // Review session complete
         sessionStats.totalTime = Math.round((Date.now() - startTime) / 1000);
-        // Could show completion stats here
       }
     } catch (err: any) {
       error = err.message || 'Failed to submit review';
@@ -133,7 +145,7 @@
       <div class="bg-red-50 dark:bg-red-900 border border-red-200 dark:border-red-700 rounded-md p-4 mb-4 transition-colors">
         <p class="text-red-800 dark:text-red-200">{error}</p>
         <button
-          on:click={loadDueFlashcards}
+          on:click={() => loadDueFlashcards(limit)}
           class="mt-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 underline transition-colors"
         >
           Try again
@@ -149,7 +161,7 @@
         </div>
         <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4 transition-colors">Review Session Complete!</h2>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <div class="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md border border-gray-200 dark:border-gray-700">
             <div class="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-2">{sessionStats.reviewed}</div>
             <div class="text-gray-600 dark:text-gray-400">Cards Reviewed</div>
@@ -157,6 +169,10 @@
           <div class="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md border border-gray-200 dark:border-gray-700">
             <div class="text-3xl font-bold text-green-600 dark:text-green-400 mb-2">{sessionStats.correct}</div>
             <div class="text-gray-600 dark:text-gray-400">Correct Answers</div>
+          </div>
+          <div class="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md border border-gray-200 dark:border-gray-700">
+            <div class="text-3xl font-bold text-red-600 dark:text-red-400 mb-2">{sessionStats.relearned}</div>
+            <div class="text-gray-600 dark:text-gray-400">Repeated (0)</div>
           </div>
           <div class="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md border border-gray-200 dark:border-gray-700">
             <div class="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-2">{Math.round(sessionStats.totalTime / 60)}m</div>
@@ -172,7 +188,7 @@
             Back to Flashcards
           </button>
           <button
-            on:click={loadDueFlashcards}
+            on:click={() => loadDueFlashcards(limit)}
             class="bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white px-8 py-3 rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-xl"
           >
             Review More Cards

@@ -4,7 +4,7 @@
   import { onMount } from 'svelte';
   import { isAuthenticated } from '$lib/auth';
   import { getDeck, getFlashcardsByDeck, deleteFlashcard, type Deck, type Flashcard } from '$lib/api';
-  import { convertToToneMarks } from '$lib/utils';
+  import { convertToToneMarks, speakText, isTextToSpeechSupported } from '$lib/utils';
   import Navigation from '$lib/components/Navigation.svelte';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 
@@ -134,7 +134,20 @@
                     <div class="flex items-center space-x-4 mb-2">
                       <div class="text-xl font-semibold text-gray-900 dark:text-white">{flashcard.word}</div>
                       {#if flashcard.pinyin}
-                        <div class="text-lg text-gray-600 dark:text-gray-300">{deck?.language === 'zh' ? convertToToneMarks(flashcard.pinyin) : flashcard.pinyin}</div>
+                        <div class="flex items-center gap-2">
+                          <div class="text-lg text-gray-600 dark:text-gray-300">{deck?.language === 'zh' ? convertToToneMarks(flashcard.pinyin) : flashcard.pinyin}</div>
+                          {#if deck?.language === 'zh' && isTextToSpeechSupported('zh-CN')}
+                            <button
+                              on:click={() => speakText(flashcard.word, 'zh-CN')}
+                              class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                              title="Speak word"
+                            >
+                              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                              </svg>
+                            </button>
+                          {/if}
+                        </div>
                       {/if}
                     </div>
                     <div class="text-gray-700 dark:text-gray-300">{flashcard.translation}</div>

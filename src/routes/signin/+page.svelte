@@ -4,8 +4,7 @@
   import { client } from '$lib/graphql';
 
   let formData = {
-    username: '',
-    email: '',
+    usernameOrEmail: '',
     password: '',
   };
 
@@ -20,8 +19,7 @@
     try {
       const result = await client.mutation(LOGIN_MUTATION, {
         input: {
-          username: formData.username,
-          email: formData.email,
+          username: formData.usernameOrEmail,
           password: formData.password,
         }
       }).toPromise();
@@ -71,34 +69,18 @@
     <form class="mt-8 space-y-6" on:submit={handleSubmit}>
       <div class="space-y-4">
         <div>
-          <label for="username" class="block text-sm font-medium text-gray-900 dark:text-gray-300 transition-colors">
-            Username
+          <label for="usernameOrEmail" class="block text-sm font-medium text-gray-900 dark:text-gray-300 transition-colors">
+            Username or Email
           </label>
           <input
-            id="username"
-            name="username"
+            id="usernameOrEmail"
+            name="usernameOrEmail"
             type="text"
             autocomplete="username"
             required
-            bind:value={formData.username}
+            bind:value={formData.usernameOrEmail}
             class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-            placeholder="Enter your username"
-          />
-        </div>
-
-        <div>
-          <label for="email" class="block text-sm font-medium text-gray-900 dark:text-gray-300 transition-colors">
-            Email address
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autocomplete="email"
-            required
-            bind:value={formData.email}
-            class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-            placeholder="Enter your email"
+            placeholder="Enter your username or email"
           />
         </div>
 

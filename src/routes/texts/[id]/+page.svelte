@@ -3,8 +3,8 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { isAuthenticated } from '$lib/auth';
-  import { getTexts, getDecks, createFlashcard, type Text, type CedictEntry, type Deck } from '$lib/api';
-  import { convertToToneMarks } from '$lib/utils';
+  import { getTexts, getText, getDecks, createFlashcard, type Text, type CedictEntry, type Deck } from '$lib/api';
+  import { convertToToneMarks, speakText, isTextToSpeechSupported } from '$lib/utils';
   import Navigation from '$lib/components/Navigation.svelte';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
   import TextNavigation from '$lib/components/TextNavigation.svelte';
@@ -18,6 +18,13 @@
   let showDeckSelection = false;
   let selectedDeckId: number | null = null;
   let addingToDeck = false;
+
+  // Full text reading state
+  let isReading = false;
+  let currentHighlightIndex = -1;
+  let readingProgress = 0;
+  let totalChars = 0;
+  let segmentCharStarts: number[] = [];
 
   onMount(async () => {
     if (!isAuthenticated()) {
@@ -39,11 +46,24 @@
     loading = true;
     error = '';
     try {
-      const texts = await getTexts();
-      allTexts = texts;
-      text = texts.find(t => t.id === id) || null;
+      // Fetch all texts for navigation (without heavy word data)
+      allTexts = await getTexts();
+      // Fetch the specific text with full details
+      text = await getText(id);
 
-      if (!text) {
+      if (text) {
+        // Prepare for full text reading
+        const fullText = text.segmentedText?.join('') || text.content || '';
+        totalChars = fullText.length;
+        segmentCharStarts = [];
+        let pos = 0;
+        if (text.segmentedText) {
+          for (let segment of text.segmentedText) {
+            segmentCharStarts.push(pos);
+            pos += segment.length;
+          }
+        }
+      } else {
         error = 'Text not found';
       }
     } catch (err: any) {
@@ -146,6 +166,137 @@
     showDeckSelection = false;
     selectedDeckId = null;
   }
+
+  function startReading() {
+    if (!text || !('speechSynthesis' in window)) return;
+
+    const fullText = text.segmentedText?.join('') || text.content || '';
+    if (!fullText.trim()) return;
+
+    // Stop any current speech
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(fullText);
+    utterance.lang = text.language === 'zh' ? 'zh-CN' : 'en-US';
+    utterance.rate = 0.8;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
+    utterance.onboundary = (event) => {
+      if (event.name === 'word') {
+        const charIndex = event.charIndex;
+        // Find which segment this char belongs to
+        for (let i = segmentCharStarts.length - 1; i >= 0; i--) {
+          if (charIndex >= segmentCharStarts[i]) {
+            currentHighlightIndex = i;
+            break;
+          }
+        }
+        readingProgress = totalChars > 0 ? (charIndex / totalChars) * 100 : 0;
+      }
+    };
+
+    utterance.onend = () => {
+      isReading = false;
+      currentHighlightIndex = -1;
+      readingProgress = 100;
+    };
+
+    utterance.onerror = () => {
+      isReading = false;
+      currentHighlightIndex = -1;
+      readingProgress = 0;
+    };
+
+    window.speechSynthesis.speak(utterance);
+    isReading = true;
+  }
+
+  function pauseReading() {
+    if ('speechSynthesis' in window) {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+        isReading = true;
+      } else {
+        window.speechSynthesis.pause();
+        isReading = false;
+      }
+    }
+  }
+
+  function stopReading() {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    isReading = false;
+    currentHighlightIndex = -1;
+    readingProgress = 0;
+  }
+
+  function seekToProgress(event: Event) {
+    const target = event.target as HTMLInputElement;
+    const newProgress = parseFloat(target.value);
+
+    if (!text?.segmentedText) return;
+
+    // Stop current reading
+    window.speechSynthesis.cancel();
+    isReading = false;
+
+    readingProgress = newProgress;
+
+    // Find the segment corresponding to this progress
+    const targetCharIndex = Math.floor((newProgress / 100) * totalChars);
+    let startSegmentIndex = 0;
+
+    for (let i = 0; i < segmentCharStarts.length; i++) {
+      if (segmentCharStarts[i] <= targetCharIndex) {
+        startSegmentIndex = i;
+      } else {
+        break;
+      }
+    }
+
+    // Start reading from this segment
+    const remainingSegments = text.segmentedText.slice(startSegmentIndex);
+    const remainingText = remainingSegments.join('');
+
+    if (remainingText.trim()) {
+      const utterance = new SpeechSynthesisUtterance(remainingText);
+      utterance.lang = text.language === 'zh' ? 'zh-CN' : 'en-US';
+      utterance.rate = 0.8;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+
+      utterance.onboundary = (event) => {
+        if (event.name === 'word') {
+          const charIndex = event.charIndex + segmentCharStarts[startSegmentIndex];
+          // Find which segment this char belongs to
+          for (let i = segmentCharStarts.length - 1; i >= 0; i--) {
+            if (charIndex >= segmentCharStarts[i]) {
+              currentHighlightIndex = i;
+              break;
+            }
+          }
+          readingProgress = totalChars > 0 ? (charIndex / totalChars) * 100 : 0;
+        }
+      };
+
+      utterance.onend = () => {
+        isReading = false;
+        currentHighlightIndex = -1;
+        readingProgress = 100;
+      };
+
+      utterance.onerror = () => {
+        isReading = false;
+        currentHighlightIndex = -1;
+      };
+
+      window.speechSynthesis.speak(utterance);
+      isReading = true;
+    }
+  }
 </script>
 
 <!-- Dictionary popup removed - now using persistent sidebar -->
@@ -154,7 +305,7 @@
   <Navigation />
 
   <!-- Main Content -->
-  <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <Breadcrumb items={[
       { label: 'My Texts', href: '/texts' },
       { label: 'View Text', current: true }
@@ -185,12 +336,23 @@
           </div>
         {/if}
         {#if text}
-          <button
-            on:click={handleEdit}
-            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 text-white rounded-md font-medium transition-colors"
-          >
-            Edit Text
-          </button>
+          <div class="flex gap-2">
+            {#if (text.language === 'zh' && isTextToSpeechSupported('zh-CN')) || text.language === 'en'}
+              <button
+                on:click={startReading}
+                disabled={isReading}
+                class="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-md font-medium transition-colors"
+              >
+                Read Full Text
+              </button>
+            {/if}
+            <button
+              on:click={handleEdit}
+              class="px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 text-white rounded-md font-medium transition-colors"
+            >
+              Edit Text
+            </button>
+          </div>
         {/if}
       </div>
 
@@ -215,12 +377,12 @@
           <div class="flex-1">
             {#if text.segmentedText}
               <div class="reading-view text-black dark:text-white">
-                {#each text.segmentedText as segment}
+                {#each text.segmentedText as segment, i}
                   {#if segment.trim() === ''}
                     {segment}
                   {:else}
                     <button
-                      class="character"
+                      class={currentHighlightIndex === i ? 'highlight' : 'character'}
                       title={`Click to look up: ${segment}`}
                       on:click={() => clickSegment(segment)}
                       type="button"
@@ -253,7 +415,20 @@
                       </svg>
                     </button>
                   </div>
-                  <div class="text-lg text-gray-600 dark:text-gray-300">{text?.language === 'zh' ? convertToToneMarks(focusedWord.pinyin) : focusedWord.pinyin}</div>
+                  <div class="flex items-center gap-2">
+                    <div class="text-lg text-gray-600 dark:text-gray-300">{text?.language === 'zh' ? convertToToneMarks(focusedWord.pinyin) : focusedWord.pinyin}</div>
+                    {#if text?.language === 'zh' && isTextToSpeechSupported('zh-CN') && focusedWord}
+                      <button
+                        on:click={() => speakText(focusedWord!.simplified, 'zh-CN')}
+                        class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                        title="Speak word"
+                      >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                        </svg>
+                      </button>
+                    {/if}
+                  </div>
                   <div class="text-left mt-2">
                     <h3 class="font-semibold mb-1 text-gray-900 dark:text-gray-100">Definitions:</h3>
                     <ul class="list-disc list-inside">
@@ -287,6 +462,33 @@
             </div>
           {/if}
         </div>
+
+        <!-- Reading Controls -->
+        {#if isReading || readingProgress > 0}
+          <div class="mt-6 bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+            <div class="flex items-center gap-4">
+              <button on:click={pauseReading} class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors">
+                {isReading ? 'Pause' : 'Resume'}
+              </button>
+              <button on:click={stopReading} class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md font-medium transition-colors">
+                Stop
+              </button>
+              <div class="flex-1">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={readingProgress}
+                  on:input={seekToProgress}
+                  class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-600"
+                />
+                <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Progress: {Math.round(readingProgress)}%
+                </div>
+              </div>
+            </div>
+          </div>
+        {/if}
 
         <div class="mt-8 flex justify-start">
           <button
@@ -388,8 +590,8 @@
     line-height: 2.2;
     font-size: 1.35rem;
     background-color: transparent;
-    min-height: 300px;
-    max-height: 70vh;
+    min-height: 500px;
+    max-height: 85vh;
     padding: 0;
     width: 100%;
     word-spacing: 0.3rem;
@@ -418,6 +620,14 @@
 
   :global(.dark) .character:hover {
     background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .highlight {
+    background-color: yellow !important;
+    color: black !important;
+    border-radius: 6px;
+    padding: 2px;
+    animation: pulse 1s ease-in-out;
   }
 
   .prose pre {

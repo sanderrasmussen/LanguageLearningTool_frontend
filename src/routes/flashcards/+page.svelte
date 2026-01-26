@@ -9,18 +9,25 @@
   let dueFlashcards: Flashcard[] = [];
   let loading = true;
   let error = '';
-  let activeTab = 'decks'; // 'decks' or 'review'
+  let activeTab = 'decks'; // 'decks', 'review', or 'settings'
   let showCreateDeckModal = false;
   let deckForm = {
     name: '',
     language: 'en'
   };
   let creatingDeck = false;
+  let dailyLimit = 20; // Default daily review limit
 
   onMount(async () => {
     if (!isAuthenticated()) {
       goto('/signin');
       return;
+    }
+
+    // Load daily limit from localStorage
+    const savedLimit = localStorage.getItem('dailyLimit');
+    if (savedLimit) {
+      dailyLimit = parseInt(savedLimit, 10);
     }
 
     await loadData();
@@ -32,7 +39,7 @@
     try {
       [decks, dueFlashcards] = await Promise.all([
         getDecks(),
-        getDueFlashcards()
+        getDueFlashcards(dailyLimit)
       ]);
     } catch (err: any) {
       error = err.message || 'Failed to load data';
@@ -89,6 +96,11 @@
   function handleViewDeck(deckId: number) {
     goto(`/flashcards/deck/${deckId}`);
   }
+
+  // Save daily limit to localStorage when it changes
+  $: if (dailyLimit) {
+    localStorage.setItem('dailyLimit', dailyLimit.toString());
+  }
 </script>
 
 <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 transition-colors duration-300">
@@ -119,12 +131,20 @@
               ? 'border-purple-500 text-purple-600 dark:text-purple-400'
               : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'}"
           >
-            Review ({dueFlashcards.length})
-            {#if dueFlashcards.length > 0}
+            Review ({Math.min(dueFlashcards.length, dailyLimit)})
+            {#if Math.min(dueFlashcards.length, dailyLimit) > 0}
               <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-                {dueFlashcards.length}
+                {Math.min(dueFlashcards.length, dailyLimit)}
               </span>
             {/if}
+          </button>
+          <button
+            on:click={() => activeTab = 'settings'}
+            class="py-2 px-1 border-b-2 font-medium text-sm transition-colors duration-200 {activeTab === 'settings'
+              ? 'border-green-500 text-green-600 dark:text-green-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'}"
+          >
+            Settings
           </button>
         </nav>
       </div>
@@ -198,6 +218,54 @@
             </div>
           </div>
         {/if}
+      </div>
+    {:else if activeTab === 'settings'}
+      <!-- Settings Tab -->
+      <div class="space-y-6">
+        <div class="flex justify-between items-center">
+          <div>
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-white transition-colors">Flashcard Settings</h2>
+            <p class="text-gray-600 dark:text-gray-400 transition-colors">Customize your learning experience.</p>
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 transition-colors border border-gray-200 dark:border-gray-700">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 transition-colors">Daily Review Limit</h3>
+          <p class="text-gray-600 dark:text-gray-400 mb-6 transition-colors">
+            Set the maximum number of flashcards you want to review in a single session. This helps maintain focus and prevents burnout.
+          </p>
+
+          <div class="flex items-center space-x-4">
+            <label for="dailyLimit" class="text-sm font-medium text-gray-900 dark:text-gray-300">
+              Cards per session:
+            </label>
+            <input
+              id="dailyLimit"
+              type="number"
+              bind:value={dailyLimit}
+              min="1"
+              max="100"
+              class="w-20 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+              on:change={loadData}
+            />
+            <span class="text-sm text-gray-600 dark:text-gray-400">cards</span>
+          </div>
+
+          <div class="mt-4 p-4 bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg">
+            <div class="flex">
+              <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                </svg>
+              </div>
+              <div class="ml-3">
+                <p class="text-sm text-blue-800 dark:text-blue-200">
+                  <strong>How it works:</strong> With spaced repetition, you'll gradually master your vocabulary. Setting a daily limit of {dailyLimit} cards means you'll work through new and review cards systematically, with difficult cards appearing more frequently and mastered cards spaced out over longer intervals.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     {:else}
       <!-- Decks Tab -->

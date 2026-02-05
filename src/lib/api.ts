@@ -10,6 +10,21 @@ export interface CedictEntry {
   definitions: string[];
 }
 
+export interface JmdictSense {
+  gloss: string[];
+  pos: string[];
+  field: string[];
+  misc: string[];
+  dial: string[];
+}
+
+export interface JmdictEntry {
+  entSeq: string;
+  kanji: string[];
+  reading: string[];
+  senses: JmdictSense[];
+}
+
 export interface Text {
   id: number;
   title: string;
@@ -20,6 +35,7 @@ export interface Text {
   upvotes: number;
   userId: number;
   wordData?: Record<string, CedictEntry>;
+  japaneseWordData?: Record<string, JmdictEntry>;
   segmentedText?: string[];
 }
 

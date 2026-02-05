@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
+  import { goto } from 
+'$app/navigation';
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { isAuthenticated } from '$lib/auth';
-  import { getTexts, getText, getDecks, createFlashcard, type Text, type CedictEntry, type Deck } from '$lib/api';
+  import { getTexts, getText, getDecks, createFlashcard, type Text, type CedictEntry, type JmdictEntry, type Deck } from '$lib/api';
   import { convertToToneMarks, speakText, isTextToSpeechSupported } from '$lib/utils';
   import Navigation from '$lib/components/Navigation.svelte';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
@@ -30,6 +31,19 @@
     if (!isAuthenticated()) {
       goto('/signin');
       return;
+    }
+
+    // Load voices for TTS (needed for some browsers)
+    if ("speechSynthesis" in window) {
+      // Some browsers need voices to be loaded first
+      const loadVoices = () => {
+        const voices = window.speechSynthesis.getVoices();
+        console.log("Loaded voices:", voices.length);
+      };
+      loadVoices();
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+      }
     }
 
     const textId = parseInt($page.params.id || '0');
@@ -69,7 +83,8 @@
     } catch (err: any) {
       error = err.message || 'Failed to load text';
       console.error('Error loading text:', err);
-    } finally {
+    }
+    finally {
       loading = false;
     }
   }
@@ -85,33 +100,86 @@
   }
 
   function clickSegment(segment: string) {
-    if (!segment || !text?.wordData) {
+    if (!segment || !text) {
       return;
     }
 
-    const wordEntry = text.wordData[segment];
-    if (wordEntry) {
-      // Find all sub-words within this compound word
-      const relatedWords: CedictEntry[] = [wordEntry];
+    // Chinese: use CC-CEDICT data directly
+    if ((text.language === 'zh' || text.language.toLowerCase() === 'chinese') && text.wordData) {
+      const wordEntry = text.wordData[segment];
+      if (wordEntry) {
+        // Find all sub-words within this compound word
+        const relatedWords: CedictEntry[] = [wordEntry];
 
-      // For compound words, also include individual characters
-      if (segment.length > 1) {
-        for (let i = 0; i < segment.length; i++) {
-          const singleChar = segment.charAt(i);
-          const singleEntry = text.wordData[singleChar];
-          if (singleEntry) {
-            relatedWords.push(singleEntry);
+        // For compound words, also include individual characters
+        if (segment.length > 1) {
+          for (let i = 0; i < segment.length; i++) {
+            const singleChar = segment.charAt(i);
+            const singleEntry = text.wordData[singleChar];
+            if (singleEntry) {
+              relatedWords.push(singleEntry);
+            }
+          }
+        }
+
+        // Create a combined entry for display
+        focusedWord = {
+          traditional: wordEntry.traditional,
+          simplified: wordEntry.simplified,
+          pinyin: wordEntry.pinyin,
+          definitions: wordEntry.definitions,
+          relatedWords: relatedWords.slice(1) // All words except the main one
+        } as any;
+      }
+      return;
+    }
+
+    // Japanese: adapt JMdict data to the same focusedWord shape
+    if (
+      (text.language === 'ja' || text.language.toLowerCase() === 'japanese') &&
+      text.japaneseWordData
+    ) {
+      const wordEntry: JmdictEntry | undefined = text.japaneseWordData[segment];
+      if (!wordEntry) {
+        return;
+      }
+
+      const primaryKanji = (wordEntry.kanji && wordEntry.kanji[0]) || segment;
+      const primaryReading = (wordEntry.reading && wordEntry.reading[0]) || '';
+      const definitions: string[] =
+        wordEntry.senses?.flatMap((s) => s.gloss ?? []) ?? [];
+
+      // Find all related conjugations/forms that share the same kanji
+      const relatedWords: any[] = [];
+      if (wordEntry.kanji && wordEntry.kanji.length > 0) {
+        // Search through all wordData to find entries with matching kanji
+        for (const [key, entry] of Object.entries(text.japaneseWordData)) {
+          if (entry.entSeq !== wordEntry.entSeq && entry.kanji && entry.kanji.length > 0) {
+            // Check if this entry shares any kanji with the current entry
+            const sharesKanji = entry.kanji.some((k: string) => wordEntry.kanji!.includes(k));
+            if (sharesKanji) {
+              const relatedKanji = entry.kanji.join(', ');
+              const relatedReading = entry.reading?.join(', ') || '';
+              const relatedDefinitions = entry.senses?.flatMap((s) => s.gloss ?? []) ?? [];
+              
+              relatedWords.push({
+                traditional: relatedKanji,
+                simplified: relatedKanji,
+                pinyin: relatedReading,
+                definitions: relatedDefinitions
+              });
+            }
           }
         }
       }
 
       // Create a combined entry for display
       focusedWord = {
-        traditional: wordEntry.traditional,
-        simplified: wordEntry.simplified,
-        pinyin: wordEntry.pinyin,
-        definitions: wordEntry.definitions,
-        relatedWords: relatedWords.slice(1) // All words except the main one
+        traditional: primaryKanji,
+        simplified: primaryKanji,
+        pinyin: primaryReading,
+        definitions,
+        relatedWords: relatedWords
       } as any;
     }
   }
@@ -157,7 +225,8 @@
     } catch (err: any) {
       error = err.message || 'Failed to add flashcard';
       console.error('Error adding flashcard:', err);
-    } finally {
+    }
+    finally {
       addingToDeck = false;
     }
   }
@@ -167,23 +236,39 @@
     selectedDeckId = null;
   }
 
-  function startReading() {
-    if (!text || !('speechSynthesis' in window)) return;
+  async function startReading() {
+    if (!text) return;
 
-    const fullText = text.segmentedText?.join('') || text.content || '';
+    const fullText = text.segmentedText?.join("") || text.content || "";
     if (!fullText.trim()) return;
 
     // Stop any current speech
-    window.speechSynthesis.cancel();
+    stopReading(); 
 
+    // Use native browser text-to-speech only
+    if (!("speechSynthesis" in window)) {
+      console.warn("Text-to-speech not supported in this browser.");
+      error = "Text-to-speech not supported in your browser.";
+      return;
+    }
+
+    console.log("Starting reading with native browser TTS");
     const utterance = new SpeechSynthesisUtterance(fullText);
-    utterance.lang = text.language === 'zh' ? 'zh-CN' : 'en-US';
+    
+    // Set language based on text language
+    if (text.language === "zh" || text.language.toLowerCase() === "chinese") {
+      utterance.lang = "zh-CN";
+    } else if (text.language === "ja" || text.language.toLowerCase() === "japanese") {
+      utterance.lang = "ja-JP";
+    } else {
+      utterance.lang = "en-US";
+    }
     utterance.rate = 0.8;
     utterance.pitch = 1.0;
     utterance.volume = 1.0;
 
     utterance.onboundary = (event) => {
-      if (event.name === 'word') {
+      if (event.name === "word") {
         const charIndex = event.charIndex;
         // Find which segment this char belongs to
         for (let i = segmentCharStarts.length - 1; i >= 0; i--) {
@@ -213,7 +298,7 @@
   }
 
   function pauseReading() {
-    if ('speechSynthesis' in window) {
+    if ("speechSynthesis" in window) {
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
         isReading = true;
@@ -225,7 +310,8 @@
   }
 
   function stopReading() {
-    if ('speechSynthesis' in window) {
+    // Stop native browser TTS
+    if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
     isReading = false;
@@ -233,15 +319,14 @@
     readingProgress = 0;
   }
 
-  function seekToProgress(event: Event) {
+  async function seekToProgress(event: Event) {
     const target = event.target as HTMLInputElement;
     const newProgress = parseFloat(target.value);
 
     if (!text?.segmentedText) return;
 
     // Stop current reading
-    window.speechSynthesis.cancel();
-    isReading = false;
+    stopReading();
 
     readingProgress = newProgress;
 
@@ -259,17 +344,36 @@
 
     // Start reading from this segment
     const remainingSegments = text.segmentedText.slice(startSegmentIndex);
-    const remainingText = remainingSegments.join('');
+    const remainingText = remainingSegments.join("");
 
     if (remainingText.trim()) {
+      isReading = true;
+
+      // Use native browser text-to-speech
+      if (!("speechSynthesis" in window)) {
+        console.warn("Text-to-speech not supported in this browser for seeking.");
+        error = "Text-to-speech not supported in your browser for seeking.";
+        isReading = false;
+        return;
+      }
+
+      console.log("Seeking with native browser TTS from progress: " + newProgress);
       const utterance = new SpeechSynthesisUtterance(remainingText);
-      utterance.lang = text.language === 'zh' ? 'zh-CN' : 'en-US';
+      
+      // Set language based on text language
+      if (text.language === "zh" || text.language.toLowerCase() === "chinese") {
+        utterance.lang = "zh-CN";
+      } else if (text.language === "ja" || text.language.toLowerCase() === "japanese") {
+        utterance.lang = "ja-JP";
+      } else {
+        utterance.lang = "en-US";
+      }
       utterance.rate = 0.8;
       utterance.pitch = 1.0;
       utterance.volume = 1.0;
 
       utterance.onboundary = (event) => {
-        if (event.name === 'word') {
+        if (event.name === "word") {
           const charIndex = event.charIndex + segmentCharStarts[startSegmentIndex];
           // Find which segment this char belongs to
           for (let i = segmentCharStarts.length - 1; i >= 0; i--) {
@@ -291,10 +395,10 @@
       utterance.onerror = () => {
         isReading = false;
         currentHighlightIndex = -1;
+        error = "Native TTS failed to seek.";
       };
 
       window.speechSynthesis.speak(utterance);
-      isReading = true;
     }
   }
 </script>
@@ -337,7 +441,9 @@
         {/if}
         {#if text}
           <div class="flex gap-2">
-            {#if (text.language === 'zh' && isTextToSpeechSupported('zh-CN')) || text.language === 'en'}
+            {#if (text.language === 'zh' || text.language?.toLowerCase() === 'chinese') || 
+                 (text.language === 'ja' || text.language?.toLowerCase() === 'japanese') || 
+                 text.language === 'en'}
               <button
                 on:click={startReading}
                 disabled={isReading}
@@ -417,16 +523,34 @@
                   </div>
                   <div class="flex items-center gap-2">
                     <div class="text-lg text-gray-600 dark:text-gray-300">{text?.language === 'zh' ? convertToToneMarks(focusedWord.pinyin) : focusedWord.pinyin}</div>
-                    {#if text?.language === 'zh' && isTextToSpeechSupported('zh-CN') && focusedWord}
-                      <button
-                        on:click={() => speakText(focusedWord!.simplified, 'zh-CN')}
-                        class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                        title="Speak word"
-                      >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
-                        </svg>
-                      </button>
+                    {#if focusedWord}
+                      {#if (text?.language === 'zh' || text?.language?.toLowerCase() === 'chinese') && isTextToSpeechSupported('zh-CN')}
+                        <button
+                          on:click={async () => await speakText(focusedWord!.simplified || focusedWord!.pinyin || '', 'zh-CN')}
+                          class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                          title="Speak word"
+                        >
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                          </svg>
+                        </button>
+                      {:else if (text?.language === 'ja' || text?.language?.toLowerCase() === 'japanese')}
+                        <button
+                          on:click={async () => {
+                            // For Japanese, prefer reading (hiragana/katakana) over kanji for pronunciation
+                            const wordToSpeak = focusedWord!.pinyin || focusedWord!.simplified || '';
+                            if (wordToSpeak) {
+                              await speakText(wordToSpeak, 'ja-JP');
+                            }
+                          }}
+                          class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                          title="Speak word"
+                        >
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                          </svg>
+                        </button>
+                      {/if}
                     {/if}
                   </div>
                   <div class="text-left mt-2">
